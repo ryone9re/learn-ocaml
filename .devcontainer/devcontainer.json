@@ -1,0 +1,7 @@
+{
+    "name": "ocaml",
+    "image": "mcr.microsoft.com/devcontainers/base:jammy",
+    "features": {
+        "ghcr.io/devcontainers-extra/features/opam-asdf:2": {}
+    }
+}
