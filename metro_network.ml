@@ -679,3 +679,75 @@ let global_ekikan_list =
     { kiten = "営団赤塚"; shuten = "営団成増"; keiyu = "有楽町線"; kyori = 1.5; jikan = 2 };
     { kiten = "営団成増"; shuten = "和光市"; keiyu = "有楽町線"; kyori = 2.1; jikan = 3 };
   ]
+
+let rec romaji_to_kanji romaji global_ekimei_list =
+  match global_ekimei_list with
+  | [] -> ""
+  | { kanji = k; romaji = r } :: rest ->
+      if romaji = r then k else romaji_to_kanji romaji rest
+
+let rec get_ekikan_kyori eki1 eki2 global_ekikan_list =
+  match global_ekikan_list with
+  | [] -> infinity
+  | { kiten = kt; shuten = st; kyori = kr } :: rest ->
+      if (eki1 = kt && eki2 = st) || (eki1 = st && eki2 = kt) then kr
+      else get_ekikan_kyori eki1 eki2 rest
+
+let rec kyori_wo_hyoji romaji_eki1 romaji_eki2 global_ekimei_list
+    global_ekikan_list =
+  let eki1 = romaji_to_kanji romaji_eki1 global_ekimei_list in
+  let eki2 = romaji_to_kanji romaji_eki2 global_ekimei_list in
+  match (eki1, eki2, get_ekikan_kyori eki1 eki2 global_ekikan_list) with
+  | "", _, _ -> romaji_eki1 ^ "という駅は存在しません"
+  | _, "", _ -> romaji_eki2 ^ "という駅は存在しません"
+  | _, _, result ->
+      if result = infinity then eki1 ^ "と" ^ eki2 ^ "は繋がっていません"
+      else eki1 ^ "から" ^ eki2 ^ "までは" ^ string_of_float result ^ "kmです"
+
+type eki_t = { namae : string; saitan_kyori : float; temae_list : string list }
+
+let rec make_eki_list global_ekimei_list =
+  match global_ekimei_list with
+  | [] -> []
+  | { kanji } :: rest ->
+      { namae = kanji; saitan_kyori = infinity; temae_list = [] }
+      :: make_eki_list rest
+
+let rec shokika eki_list kiten =
+  match eki_list with
+  | [] -> []
+  | ({ namae } as first) :: rest ->
+      if namae = kiten then
+        { namae; saitan_kyori = 0.0; temae_list = [ namae ] } :: rest
+      else first :: shokika rest kiten
+
+let rec ekimei_insert ekimei ekimei_list =
+  let { kanji = ek } = ekimei in
+  match ekimei_list with
+  | [] -> [ ekimei ]
+  | ({ kanji = lk } as first) :: rest ->
+      if ek < lk then ekimei :: ekimei_list
+      else first :: ekimei_insert ekimei rest
+
+let rec ekimei_list_ins_sort ekimei_list =
+  match ekimei_list with
+  | [] -> []
+  | first :: rest -> ekimei_insert first (ekimei_list_ins_sort rest)
+
+let rec duplicate_ekimei ekimei sorted_deduplicated_ekimei_list =
+  let { kanji = ek } = ekimei in
+  match sorted_deduplicated_ekimei_list with
+  | [] -> false
+  | { kanji = lk } :: rest -> ek = lk
+
+let rec deduplicate_sorted_ekimei_list sorted_ekimei_list =
+  match sorted_ekimei_list with
+  | [] -> []
+  | first :: rest ->
+      let deduplicated_ekimei_list = deduplicate_sorted_ekimei_list rest in
+      if duplicate_ekimei first deduplicated_ekimei_list then
+        deduplicated_ekimei_list
+      else first :: deduplicated_ekimei_list
+
+let rec seiretsu ekimei_list =
+  deduplicate_sorted_ekimei_list (ekimei_list_ins_sort ekimei_list)
