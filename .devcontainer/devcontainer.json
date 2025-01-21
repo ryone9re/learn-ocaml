@@ -4,8 +4,7 @@
     "features": {
         "ghcr.io/devcontainers-extra/features/opam-asdf:2": {}
     },
-    "onCreateCommand": "sudo apt update -y && sudo apt install -y bubblewrap && opam init -y && opam install -y ocaml-lsp-server",
-    "postStartCommand": "eval $(opam env)",
+    "onCreateCommand": "sudo apt update -y && sudo apt install -y bubblewrap && opam init -y && opam install -y ocaml-lsp-server ocamlformat && opam env >> /home/vscode/.bashrc",
     "customizations": {
         "vscode": {
             "extensions": [
