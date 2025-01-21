@@ -706,41 +706,34 @@ let rec kyori_wo_hyoji romaji_eki1 romaji_eki2 global_ekimei_list
 
 type eki_t = { namae : string; saitan_kyori : float; temae_list : string list }
 
-let rec make_eki_list global_ekimei_list =
-  match global_ekimei_list with
-  | [] -> []
-  | { kanji } :: rest ->
-      { namae = kanji; saitan_kyori = infinity; temae_list = [] }
-      :: make_eki_list rest
-
-let rec shokika eki_list kiten =
-  match eki_list with
-  | [] -> []
-  | ({ namae } as first) :: rest ->
-      if namae = kiten then
-        { namae; saitan_kyori = 0.0; temae_list = [ namae ] } :: rest
-      else first :: shokika rest kiten
-
-let rec ekimei_insert ekimei ekimei_list =
-  let { kanji = ek } = ekimei in
-  match ekimei_list with
-  | [] -> [ ekimei ]
-  | ({ kanji = lk } as first) :: rest ->
-      if ek < lk then ekimei :: ekimei_list
-      else first :: ekimei_insert ekimei rest
+let make_initial_eki_list ekimei_list kiten =
+  List.map
+    (fun { kanji } ->
+      if kanji = kiten then
+        { namae = kanji; saitan_kyori = 0.0; temae_list = [ kanji ] }
+      else { namae = kanji; saitan_kyori = infinity; temae_list = [] })
+    ekimei_list
 
 let rec ekimei_list_ins_sort ekimei_list =
+  let rec ekimei_insert ekimei ekimei_list =
+    let { kanji = ek } = ekimei in
+    match ekimei_list with
+    | [] -> [ ekimei ]
+    | ({ kanji = lk } as first) :: rest ->
+        if ek < lk then ekimei :: ekimei_list
+        else first :: ekimei_insert ekimei rest
+  in
   match ekimei_list with
   | [] -> []
   | first :: rest -> ekimei_insert first (ekimei_list_ins_sort rest)
 
-let rec duplicate_ekimei ekimei sorted_deduplicated_ekimei_list =
-  let { kanji = ek } = ekimei in
-  match sorted_deduplicated_ekimei_list with
-  | [] -> false
-  | { kanji = lk } :: rest -> ek = lk
-
 let rec deduplicate_sorted_ekimei_list sorted_ekimei_list =
+  let rec duplicate_ekimei ekimei sorted_deduplicated_ekimei_list =
+    let { kanji = ek } = ekimei in
+    match sorted_deduplicated_ekimei_list with
+    | [] -> false
+    | { kanji = lk } :: rest -> ek = lk
+  in
   match sorted_ekimei_list with
   | [] -> []
   | first :: rest ->
@@ -751,3 +744,52 @@ let rec deduplicate_sorted_ekimei_list sorted_ekimei_list =
 
 let rec seiretsu ekimei_list =
   deduplicate_sorted_ekimei_list (ekimei_list_ins_sort ekimei_list)
+
+let koushin p v ekikan_list =
+  List.map
+    (fun q ->
+      match (p, q) with
+      | ( { namae = pn; saitan_kyori = psk; temae_list = ptl },
+          { namae = qn; saitan_kyori = qsk; temae_list = qtl } ) ->
+          let kyori = get_ekikan_kyori pn qn ekikan_list in
+          if kyori = infinity then q
+          else if qsk <= kyori +. psk then q
+          else
+            { namae = qn; saitan_kyori = kyori +. psk; temae_list = qn :: ptl })
+    v
+
+let saitan_wo_bunri eki_list =
+  List.fold_right
+    (fun now (p, v) ->
+      match (now, p) with
+      | { saitan_kyori = fs }, { namae = sn; saitan_kyori = ss } ->
+          if sn = "" then (now, v)
+          else if fs < ss then (now, p :: v)
+          else (p, now :: v))
+    eki_list
+    ({ namae = ""; saitan_kyori = infinity; temae_list = [] }, [])
+
+let rec dijkstra_main eki_list ekikan_list =
+  match eki_list with
+  | [] -> []
+  | list ->
+      let p, rest = saitan_wo_bunri list in
+      p :: dijkstra_main (koushin p rest ekikan_list) ekikan_list
+
+let dijkstra shiten_romaji shuten_romaji =
+  let kyori_map =
+    dijkstra_main
+      (make_initial_eki_list
+         (seiretsu global_ekimei_list)
+         (romaji_to_kanji shiten_romaji global_ekimei_list))
+      global_ekikan_list
+  in
+  let rec search kyori_map shuten =
+    match kyori_map with
+    | [] -> { namae = "無し"; saitan_kyori = infinity; temae_list = [] }
+    | ({ namae } as first) :: rest ->
+        if namae = shuten then first else search rest shuten
+  in
+  search kyori_map (romaji_to_kanji shuten_romaji global_ekimei_list)
+
+let result = dijkstra "komagome" "yotsuya"
