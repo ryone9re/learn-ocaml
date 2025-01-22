@@ -785,7 +785,7 @@ let koushin p v ekikan_tree =
             { namae = qn; saitan_kyori = kyori +. psk; temae_list = qn :: ptl })
     v
 
-let saitan_wo_bunri eki_list =
+let saitan_wo_bunri first rest =
   List.fold_right
     (fun now (p, v) ->
       match (now, p) with
@@ -793,14 +793,13 @@ let saitan_wo_bunri eki_list =
           if sn = "" then (now, v)
           else if fs < ss then (now, p :: v)
           else (p, now :: v))
-    eki_list
-    ({ namae = ""; saitan_kyori = infinity; temae_list = [] }, [])
+    rest (first, [])
 
 let rec dijkstra_main eki_list ekikan_tree =
   match eki_list with
   | [] -> []
-  | list ->
-      let p, rest = saitan_wo_bunri list in
+  | first :: rest ->
+      let p, rest = saitan_wo_bunri first rest in
       p :: dijkstra_main (koushin p rest ekikan_tree) ekikan_tree
 
 let dijkstra shiten_romaji shuten_romaji =
