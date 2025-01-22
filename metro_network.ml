@@ -680,24 +680,23 @@ let global_ekikan_list =
     { kiten = "営団成増"; shuten = "和光市"; keiyu = "有楽町線"; kyori = 2.1; jikan = 3 };
   ]
 
-let rec romaji_to_kanji romaji global_ekimei_list =
-  match global_ekimei_list with
+let rec romaji_to_kanji romaji ekimei_list =
+  match ekimei_list with
   | [] -> ""
   | { kanji = k; romaji = r } :: rest ->
       if romaji = r then k else romaji_to_kanji romaji rest
 
-let rec get_ekikan_kyori eki1 eki2 global_ekikan_list =
-  match global_ekikan_list with
+let rec get_ekikan_kyori eki1 eki2 ekikan_list =
+  match ekikan_list with
   | [] -> infinity
   | { kiten = kt; shuten = st; kyori = kr } :: rest ->
       if (eki1 = kt && eki2 = st) || (eki1 = st && eki2 = kt) then kr
       else get_ekikan_kyori eki1 eki2 rest
 
-let rec kyori_wo_hyoji romaji_eki1 romaji_eki2 global_ekimei_list
-    global_ekikan_list =
-  let eki1 = romaji_to_kanji romaji_eki1 global_ekimei_list in
-  let eki2 = romaji_to_kanji romaji_eki2 global_ekimei_list in
-  match (eki1, eki2, get_ekikan_kyori eki1 eki2 global_ekikan_list) with
+let rec kyori_wo_hyoji romaji_eki1 romaji_eki2 ekimei_list ekikan_list =
+  let eki1 = romaji_to_kanji romaji_eki1 ekimei_list in
+  let eki2 = romaji_to_kanji romaji_eki2 ekimei_list in
+  match (eki1, eki2, get_ekikan_kyori eki1 eki2 ekikan_list) with
   | "", _, _ -> romaji_eki1 ^ "という駅は存在しません"
   | _, "", _ -> romaji_eki2 ^ "という駅は存在しません"
   | _, _, result ->
