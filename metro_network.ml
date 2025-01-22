@@ -680,18 +680,46 @@ let global_ekikan_list =
     { kiten = "営団成増"; shuten = "和光市"; keiyu = "有楽町線"; kyori = 2.1; jikan = 3 };
   ]
 
+type ekikan_tree_t =
+  | Empty
+  | Node of ekikan_tree_t * (string * (string * float) list) * ekikan_tree_t
+
+let rec assoc ekimei ekimei_kyori_assoc_list =
+  match ekimei_kyori_assoc_list with
+  | [] -> infinity
+  | (k, v) :: rest -> if k = ekimei then v else assoc ekimei rest
+
+let insert_ekikan ekikan ekikan_tree =
+  let rec insert ekikan_tree kiten shuten kyori =
+    match ekikan_tree with
+    | Empty -> Node (Empty, (kiten, [ (shuten, kyori) ]), Empty)
+    | Node (l, (name, list), r) ->
+        if kiten < name then Node (insert l kiten shuten kyori, (name, list), r)
+        else if kiten > name then
+          Node (l, (name, list), insert r kiten shuten kyori)
+        else if assoc shuten list = infinity then
+          Node (l, (name, (shuten, kyori) :: list), r)
+        else Node (l, (name, list), r)
+  in
+  let { kiten; shuten; kyori } = ekikan in
+  insert (insert ekikan_tree kiten shuten kyori) shuten kiten kyori
+
+let inserts_ekikan ekikan_tree ekikan_list =
+  List.fold_right insert_ekikan ekikan_list ekikan_tree
+
 let rec romaji_to_kanji romaji ekimei_list =
   match ekimei_list with
   | [] -> ""
   | { kanji = k; romaji = r } :: rest ->
       if romaji = r then k else romaji_to_kanji romaji rest
 
-let rec get_ekikan_kyori eki1 eki2 ekikan_list =
-  match ekikan_list with
-  | [] -> infinity
-  | { kiten = kt; shuten = st; kyori = kr } :: rest ->
-      if (eki1 = kt && eki2 = st) || (eki1 = st && eki2 = kt) then kr
-      else get_ekikan_kyori eki1 eki2 rest
+let rec get_ekikan_kyori eki1 eki2 ekikan_tree =
+  match ekikan_tree with
+  | Empty -> infinity
+  | Node (l, (name, list), r) ->
+      if eki1 < name then get_ekikan_kyori eki1 eki2 l
+      else if eki1 > name then get_ekikan_kyori eki1 eki2 r
+      else assoc eki2 list
 
 let rec kyori_wo_hyoji romaji_eki1 romaji_eki2 ekimei_list ekikan_list =
   let eki1 = romaji_to_kanji romaji_eki1 ekimei_list in
@@ -744,13 +772,13 @@ let rec deduplicate_sorted_ekimei_list sorted_ekimei_list =
 let rec seiretsu ekimei_list =
   deduplicate_sorted_ekimei_list (ekimei_list_ins_sort ekimei_list)
 
-let koushin p v ekikan_list =
+let koushin p v ekikan_tree =
   List.map
     (fun q ->
       match (p, q) with
       | ( { namae = pn; saitan_kyori = psk; temae_list = ptl },
           { namae = qn; saitan_kyori = qsk; temae_list = qtl } ) ->
-          let kyori = get_ekikan_kyori pn qn ekikan_list in
+          let kyori = get_ekikan_kyori pn qn ekikan_tree in
           if kyori = infinity then q
           else if qsk <= kyori +. psk then q
           else
@@ -768,12 +796,12 @@ let saitan_wo_bunri eki_list =
     eki_list
     ({ namae = ""; saitan_kyori = infinity; temae_list = [] }, [])
 
-let rec dijkstra_main eki_list ekikan_list =
+let rec dijkstra_main eki_list ekikan_tree =
   match eki_list with
   | [] -> []
   | list ->
       let p, rest = saitan_wo_bunri list in
-      p :: dijkstra_main (koushin p rest ekikan_list) ekikan_list
+      p :: dijkstra_main (koushin p rest ekikan_tree) ekikan_tree
 
 let dijkstra shiten_romaji shuten_romaji =
   let kyori_map =
@@ -781,7 +809,7 @@ let dijkstra shiten_romaji shuten_romaji =
       (make_initial_eki_list
          (seiretsu global_ekimei_list)
          (romaji_to_kanji shiten_romaji global_ekimei_list))
-      global_ekikan_list
+      (inserts_ekikan Empty global_ekikan_list)
   in
   let rec search kyori_map shuten =
     match kyori_map with
