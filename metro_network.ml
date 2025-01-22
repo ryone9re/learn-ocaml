@@ -686,7 +686,7 @@ type ekikan_tree_t =
 
 let rec assoc ekimei ekimei_kyori_assoc_list =
   match ekimei_kyori_assoc_list with
-  | [] -> raise Not_found
+  | [] -> infinity
   | (k, v) :: rest -> if k = ekimei then v else assoc ekimei rest
 
 let insert_ekikan ekikan ekikan_tree =
@@ -707,17 +707,15 @@ let insert_ekikan ekikan ekikan_tree =
 let inserts_ekikan ekikan_tree ekikan_list =
   List.fold_right insert_ekikan ekikan_list ekikan_tree
 
-exception No_such_station of string
-
 let rec romaji_to_kanji romaji ekimei_list =
   match ekimei_list with
-  | [] -> raise (No_such_station romaji)
+  | [] -> ""
   | { kanji = k; romaji = r } :: rest ->
       if romaji = r then k else romaji_to_kanji romaji rest
 
 let rec get_ekikan_kyori eki1 eki2 ekikan_tree =
   match ekikan_tree with
-  | Empty -> raise Not_found
+  | Empty -> infinity
   | Node (l, (name, list), r) ->
       if eki1 < name then get_ekikan_kyori eki1 eki2 l
       else if eki1 > name then get_ekikan_kyori eki1 eki2 r
@@ -779,17 +777,12 @@ let koushin p v ekikan_tree =
     (fun q ->
       match (p, q) with
       | ( { namae = pn; saitan_kyori = psk; temae_list = ptl },
-          { namae = qn; saitan_kyori = qsk; temae_list = qtl } ) -> (
-          try
-            let kyori = get_ekikan_kyori pn qn ekikan_tree in
-            if qsk <= kyori +. psk then q
-            else
-              {
-                namae = qn;
-                saitan_kyori = kyori +. psk;
-                temae_list = qn :: ptl;
-              }
-          with Not_found -> q))
+          { namae = qn; saitan_kyori = qsk; temae_list = qtl } ) ->
+          let kyori = get_ekikan_kyori pn qn ekikan_tree in
+          if kyori = infinity then q
+          else if qsk <= kyori +. psk then q
+          else
+            { namae = qn; saitan_kyori = kyori +. psk; temae_list = qn :: ptl })
     v
 
 let saitan_wo_bunri first rest =
@@ -810,22 +803,34 @@ let rec dijkstra_main eki_list ekikan_tree =
       p :: dijkstra_main (koushin p rest ekikan_tree) ekikan_tree
 
 let dijkstra shiten_romaji shuten_romaji =
-  try
-    let kyori_map =
-      dijkstra_main
-        (make_initial_eki_list
-           (seiretsu global_ekimei_list)
-           (romaji_to_kanji shiten_romaji global_ekimei_list))
-        (inserts_ekikan Empty global_ekikan_list)
-    in
-    let rec search kyori_map shuten =
-      match kyori_map with
-      | [] -> { namae = "無し"; saitan_kyori = infinity; temae_list = [] }
-      | ({ namae } as first) :: rest ->
-          if namae = shuten then first else search rest shuten
-    in
-    search kyori_map (romaji_to_kanji shuten_romaji global_ekimei_list)
-  with No_such_station romaji ->
-    { namae = romaji ^ "という駅はありません"; saitan_kyori = infinity; temae_list = [] }
+  let kyori_map =
+    dijkstra_main
+      (make_initial_eki_list
+         (seiretsu global_ekimei_list)
+         (romaji_to_kanji shiten_romaji global_ekimei_list))
+      (inserts_ekikan Empty global_ekikan_list)
+  in
+  let rec search kyori_map shuten =
+    match kyori_map with
+    | [] -> { namae = "無し"; saitan_kyori = infinity; temae_list = [] }
+    | ({ namae } as first) :: rest ->
+        if namae = shuten then first else search rest shuten
+  in
+  search kyori_map (romaji_to_kanji shuten_romaji global_ekimei_list)
 
-let result = dijkstra "komagome" "nagatacho"
+let print_eki eki =
+  match eki with
+  | { namae; saitan_kyori; temae_list } ->
+      let keiyu_list =
+        List.fold_left (fun acc ekimei -> ekimei ^ "->" ^ acc) "" temae_list
+      in
+      print_string namae;
+      print_string "までの最短経路は";
+      print_float saitan_kyori;
+      print_string "kmです。";
+      print_newline ();
+      print_string "経由駅は";
+      print_string keiyu_list;
+      print_string "です。"
+
+let result = print_eki (dijkstra "komagome" "nagatacho")
