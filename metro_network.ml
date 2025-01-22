@@ -818,4 +818,4 @@ let dijkstra shiten_romaji shuten_romaji =
   in
   search kyori_map (romaji_to_kanji shuten_romaji global_ekimei_list)
 
-let result = dijkstra "komagome" "yotsuya"
+let result = dijkstra "komagome" "nagatacho"
